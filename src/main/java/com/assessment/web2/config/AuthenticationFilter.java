@@ -1,0 +1,59 @@
+package com.assessment.web2.config;
+
+import com.assessment.web2.entity.ApplicationUser;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Date;
+
+import static com.assessment.web2.constants.SecurityConstants.EXPIRATION_TIME;
+import static com.assessment.web2.constants.SecurityConstants.KEY;
+
+public class AuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+    private AuthenticationManager authenticationManager;
+
+    public AuthenticationFilter(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+    }
+
+    @Override
+    public Authentication attemptAuthentication(HttpServletRequest req,
+                                                HttpServletResponse res) throws AuthenticationException {
+        try {
+            ApplicationUser applicationUser = new ObjectMapper().readValue(req.getInputStream(), ApplicationUser.class);
+
+            return authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(applicationUser.getUsername(),
+                            applicationUser.getPassword(), new ArrayList<>())
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    protected void successfulAuthentication(HttpServletRequest req, HttpServletResponse res, FilterChain chain,
+                                            Authentication auth) throws IOException, ServletException {
+
+        Date exp = new Date(System.currentTimeMillis() + EXPIRATION_TIME);
+        Claims claims = Jwts.claims().setSubject(((User) auth.getPrincipal()).getUsername());
+        String token = Jwts.builder().setClaims(claims).signWith(SignatureAlgorithm.HS512, KEY.getBytes()).setExpiration(exp).compact();
+        res.addHeader("token", token);
+
+
+    }
+}
